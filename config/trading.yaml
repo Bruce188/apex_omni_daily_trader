@@ -1,0 +1,104 @@
+# ApexOmni Trading Bot Configuration
+# ===================================
+#
+# This file contains trading parameters and safety settings.
+# API credentials should NEVER be stored here - use .env file instead.
+
+# API Configuration
+# -----------------
+# Credentials are loaded from environment variables (.env file)
+api:
+  # Network endpoint: "mainnet" or "testnet"
+  # ALWAYS use testnet for testing before going to mainnet!
+  endpoint: "testnet"
+
+# Trading Configuration
+# ---------------------
+# NOTE: Leverage is ALWAYS 1x (hardcoded for safety)
+# NOTE: Positions are ALWAYS closed immediately (hardcoded for safety)
+# NOTE: Symbol is ALWAYS auto-selected (cheapest tradeable symbol)
+trading:
+  # SYMBOL SELECTION: AUTOMATIC
+  # ---------------------------
+  # The bot ALWAYS selects the cheapest tradeable symbol based on your balance.
+  # There is no "preferred" symbol concept - this minimizes trading costs.
+  # The 'symbol' field below is DEPRECATED and ignored.
+  # symbol: "BTC-USDT"  # DEPRECATED - ignored, bot auto-selects cheapest
+
+  # Default trade direction: "BUY" or "SELL"
+  side: "BUY"
+
+  # Order type: "MARKET" or "LIMIT"
+  # MARKET recommended for guaranteed fills
+  type: "MARKET"
+
+  # Trade size in base currency
+  # NOTE: This is overridden by the auto-selected symbol's minimum order size
+  size: 0.001
+
+  # Minimum trade value target in USDT
+  # Bot will look for symbols where min_order_size * price >= this value
+  min_trade_value_usdt: 1.0
+
+# Safety Configuration
+# --------------------
+safety:
+  # Dry-run mode: simulate trades without execution
+  # ALWAYS start with dry_run: true until you've verified everything works!
+  dry_run: true
+
+  # Maximum position size allowed (in base currency)
+  max_position_size: 0.01
+
+  # Maximum trades per day (safety limit)
+  # Increased for continuous mode
+  max_daily_trades: 10
+
+  # Minimum account balance required to trade (in USDT)
+  # NOTE: Set low for testnet/development. For production, consider 50+ USDT.
+  min_balance: 0.01
+
+  # Whether to check balance before trading
+  require_balance_check: true
+
+# Schedule Configuration
+# ----------------------
+schedule:
+  # Mode: "daily" (once per day) or "continuous" (interval-based 24/7)
+  mode: "daily"
+
+  # For continuous mode: hours between trades (1-24)
+  trade_interval_hours: 4
+
+  # Days to trade: 0=Monday, 1=Tuesday, ..., 4=Friday, 5=Saturday, 6=Sunday
+  # All 7 days enabled for maximum flexibility. Staking factor only requires
+  # 5 unique days, but weekends are included for users who prefer weekend trading.
+  # For Mon-Fri only, use: [0, 1, 2, 3, 4]
+  trade_days:
+    - 0  # Monday
+    - 1  # Tuesday
+    - 2  # Wednesday
+    - 3  # Thursday
+    - 4  # Friday
+    - 5  # Saturday
+    - 6  # Sunday
+
+  # Time to execute daily trade (UTC)
+  # Should be after 8:00 UTC (weekly/daily reset time)
+  trade_time: "09:00"
+
+  # Continue trading after achieving max factor (5 days)?
+  # true = keep trading for volume, false = pause until next week
+  continue_after_max_factor: true
+
+  # Timezone for schedule
+  timezone: "UTC"
+
+# Logging Configuration
+# ---------------------
+log_level: "INFO"
+# log_file: "logs/trading.log"  # Uncomment to enable file logging
+
+# Data Directory
+# --------------
+data_dir: "data"

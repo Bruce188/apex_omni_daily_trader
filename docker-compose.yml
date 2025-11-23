@@ -1,0 +1,58 @@
+services:
+  apex-trader:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: apex-daily-trader
+    restart: unless-stopped
+
+    # Health check
+    healthcheck:
+      test: ["CMD", "python", "-c", "from bot.config import Config; c = Config.load(); print('healthy')"]
+      interval: 5m
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+    environment:
+      # API Credentials (from .env file)
+      - APEX_API_KEY=${APEX_API_KEY}
+      - APEX_API_SECRET=${APEX_API_SECRET}
+      - APEX_PASSPHRASE=${APEX_PASSPHRASE}
+      - APEX_ZK_SEEDS=${APEX_ZK_SEEDS}
+      - APEX_ZK_L2KEY=${APEX_ZK_L2KEY:-}
+
+      # Network
+      - APEX_NETWORK=${APEX_NETWORK:-testnet}
+
+      # Schedule Configuration
+      - SCHEDULE_MODE=${SCHEDULE_MODE:-daily}
+      - TRADE_INTERVAL_HOURS=${TRADE_INTERVAL_HOURS:-4}
+
+      # Safety
+      - DRY_RUN=${DRY_RUN:-true}
+
+      # Logging
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+
+      # Debug & Monitoring
+      - DEBUG=${DEBUG:-false}
+
+      # Circuit Breaker
+      - MAX_FAILURES=${MAX_FAILURES:-5}
+      - CIRCUIT_RESET_MINUTES=${CIRCUIT_RESET_MINUTES:-30}
+
+    volumes:
+      # Persist trade data
+      - ./data:/app/data
+      # Optional: custom config
+      - ./config:/app/config:ro
+
+    # Graceful shutdown
+    stop_grace_period: 30s
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
