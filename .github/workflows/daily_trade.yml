@@ -1,0 +1,30 @@
+name: ApexOmni Daily Bot
+
+on:
+  schedule:
+    - cron: '0 8 * * *' # Runs at 08:00 UTC
+  workflow_dispatch:
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build Docker Image
+        run: docker build -t apex-bot .
+
+      - name: Run Trading Bot
+        env:
+          # This section "creates" the environment for the bot
+          # Add every variable found in your .env.example here
+          PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
+          RPC_URL: ${{ secrets.RPC_URL }}
+          # If your .env.example has others, add them like this:
+          # VARIABLE_NAME: ${{ secrets.VARIABLE_NAME }}
+        run: |
+          docker run --rm \
+            -e PRIVATE_KEY="$PRIVATE_KEY" \
+            -e RPC_URL="$RPC_URL" \
+            apex-bot
