@@ -2,8 +2,9 @@ name: ApexOmni Daily Trade
 
 on:
   schedule:
-    - cron: '0 14 * * *' # Runs at 14:00 UTC daily
-  workflow_dispatch:
+    # Runs at 14:00 UTC daily. Change as needed.
+    - cron: '0 14 * * *'
+  workflow_dispatch: # Allows you to trigger it manually from the "Actions" tab
 
 jobs:
   run-bot:
@@ -17,18 +18,24 @@ jobs:
 
       - name: Run Trading Bot
         env:
-          # --- Secrets (Add these in GitHub Settings) ---
+          # --- SECRETS: These must be added in GitHub Repository Secrets ---
           APEX_API_KEY: ${{ secrets.APEX_API_KEY }}
+          APEX_API_SECRET: ${{ secrets.APEX_API_SECRET }}
+          APEX_PASSPHRASE: ${{ secrets.APEX_PASSPHRASE }}
           APEX_ZK_SEEDS: ${{ secrets.APEX_ZK_SEEDS }}
+          APEX_ZK_L2KEY: ${{ secrets.APEX_ZK_L2KEY }}
           
-          # --- Public Config (Can be hardcoded here) ---
+          # --- CONFIG: Fixed values for your bot ---
           APEX_NETWORK: mainnet
           DRY_RUN: false
           LOG_LEVEL: INFO
         run: |
           docker run --rm \
             -e APEX_API_KEY="$APEX_API_KEY" \
+            -e APEX_API_SECRET="$APEX_API_SECRET" \
+            -e APEX_PASSPHRASE="$APEX_PASSPHRASE" \
             -e APEX_ZK_SEEDS="$APEX_ZK_SEEDS" \
+            -e APEX_ZK_L2KEY="$APEX_ZK_L2KEY" \
             -e APEX_NETWORK="$APEX_NETWORK" \
             -e DRY_RUN="$DRY_RUN" \
             -e LOG_LEVEL="$LOG_LEVEL" \
