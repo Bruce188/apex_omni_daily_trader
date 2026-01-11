@@ -31,6 +31,7 @@ jobs:
           LOG_LEVEL: INFO
         run: |
           docker run --rm \
+            --entrypoint python \
             -e APEX_API_KEY="$APEX_API_KEY" \
             -e APEX_API_SECRET="$APEX_API_SECRET" \
             -e APEX_PASSPHRASE="$APEX_PASSPHRASE" \
@@ -39,4 +40,4 @@ jobs:
             -e APEX_NETWORK="$APEX_NETWORK" \
             -e DRY_RUN="$DRY_RUN" \
             -e LOG_LEVEL="$LOG_LEVEL" \
-            apex-bot
+            apex-bot scripts/run_bot.py
