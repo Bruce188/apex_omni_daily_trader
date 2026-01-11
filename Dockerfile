@@ -1,16 +1,17 @@
-# 1. Use an official Python runtime as a parent image
 FROM python:3.11-slim
 
-# 2. Set the working directory inside the container
+# 1. Set the working directory
 WORKDIR /app
 
-# 3. Copy the requirements file and install dependencies
-# Make sure you have a requirements.txt file in your repo!
+# 2. Copy requirements and install (Modified for speed)
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 4. Copy the rest of your bot's code into the container
+# 3.  Copy your code before the volumes are mounted
 COPY . .
 
-# 5. The command to run your bot (replace 'main.py' with your script name)
+# 4. Create the data directory so the volume mount doesn't error out
+RUN mkdir -p /app/data /app/config
+
+# 5. Run the bot
 CMD ["python", "main.py"]
