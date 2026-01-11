@@ -14,4 +14,4 @@ COPY . .
 RUN mkdir -p /app/data /app/config
 
 # 5. Run the bot
-CMD ["python", "main.py"]
+CMD ["python", "-m", "bot"]
