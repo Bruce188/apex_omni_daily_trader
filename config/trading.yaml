@@ -59,7 +59,7 @@ safety:
   min_balance: 0.01
 
   # Whether to check balance before trading
-  require_balance_check: true
+  require_balance_check: false
 
 # Schedule Configuration
 # ----------------------
