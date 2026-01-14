@@ -40,4 +40,4 @@ jobs:
             -e APEX_NETWORK="$APEX_NETWORK" \
             -e DRY_RUN="$DRY_RUN" \
             -e LOG_LEVEL="$LOG_LEVEL" \
-            apex-bot scripts/run_bot.py
+            apex-bot scripts/run_bot.py --live
