@@ -45,7 +45,7 @@ trading:
 safety:
   # Dry-run mode: simulate trades without execution
   # ALWAYS start with dry_run: true until you've verified everything works!
-  dry_run: true
+  dry_run: false
 
   # Maximum position size allowed (in base currency)
   max_position_size: 0.01
