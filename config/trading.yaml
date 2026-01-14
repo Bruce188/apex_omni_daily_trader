@@ -10,7 +10,7 @@
 api:
   # Network endpoint: "mainnet" or "testnet"
   # ALWAYS use testnet for testing before going to mainnet!
-  endpoint: "testnet"
+  endpoint: "mainnet"
 
 # Trading Configuration
 # ---------------------
