@@ -72,6 +72,30 @@ def get_logger() -> logging.Logger:
     return logging.getLogger("apex_bot")
 
 
+def should_include_error_details(testnet: bool) -> bool:
+    """Check if error details should be included based on environment."""
+    return testnet or os.getenv("DEBUG", "").lower() == "true"
+
+
+def log_error(
+    logger: logging.Logger,
+    message: str,
+    exception: Optional[Exception] = None,
+    include_details: Optional[bool] = None,
+    testnet: bool = False,
+) -> None:
+    """Log error with appropriate detail level for the environment."""
+    if include_details is None:
+        include_details = should_include_error_details(testnet)
+
+    if include_details and exception:
+        logger.error(f"{message}: {exception}")
+    elif exception:
+        logger.error(f"{message}. Enable DEBUG=true for details.")
+    else:
+        logger.error(message)
+
+
 def get_current_utc_time() -> datetime:
     """Get current UTC time with timezone info."""
     return datetime.now(timezone.utc)

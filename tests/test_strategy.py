@@ -70,7 +70,6 @@ class TestStrategy:
     def config(self):
         """Create a test configuration."""
         config = Config()
-        config.trading.symbol = "BTC-USDT"
         config.trading.side = "BUY"
         config.trading.size = Decimal("0.001")
         config.schedule.trade_days = [0, 1, 2, 3, 4]  # Mon-Fri
@@ -101,14 +100,6 @@ class TestStrategy:
 
         # 5 days trading, 6-month lock
         assert strategy.calculate_expected_multiplier(5, 0.5) == 2.0
-
-    def test_estimate_weekly_cost(self, strategy):
-        """Should estimate reasonable weekly cost."""
-        cost = strategy.estimate_weekly_cost(fee_rate=0.001)
-        # Should be a small amount (less than $1 for minimum trades)
-        assert cost > 0
-        assert cost < Decimal("10")  # Should be well under $10
-
 
 class TestStrategyStatus:
     """Tests for strategy status reporting."""
@@ -148,7 +139,6 @@ class TestStrategyAdvanced:
     @pytest.fixture
     def config(self):
         config = Config()
-        config.trading.symbol = "BTC-USDT"
         config.trading.side = "BUY"
         config.trading.size = Decimal("0.001")
         config.schedule.trade_days = [0, 1, 2, 3, 4]
@@ -182,7 +172,6 @@ class TestGetTradeForToday:
     @pytest.fixture
     def config(self):
         config = Config()
-        config.trading.symbol = "BTC-USDT"
         config.trading.side = "BUY"
         config.trading.size = Decimal("0.001")
         config.schedule.trade_days = [0, 1, 2, 3, 4]
@@ -209,7 +198,6 @@ class TestPrintWeeklyPlan:
     @pytest.fixture
     def config(self):
         config = Config()
-        config.trading.symbol = "BTC-USDT"
         config.trading.side = "BUY"
         config.trading.size = Decimal("0.001")
         config.schedule.trade_days = [0, 1, 2, 3, 4]
@@ -229,28 +217,6 @@ class TestPrintWeeklyPlan:
         """Should print weekly plan with max days."""
         strategy.print_weekly_plan(days_already_traded=5)
         # Just verify no exception was raised
-
-
-class TestCreateTradeFromConfig:
-    """Tests for create_trade_from_config factory function."""
-
-    def test_create_trade(self):
-        """Should create trade from config."""
-        from bot.strategy import create_trade_from_config
-
-        config = Config()
-        config.trading.symbol = "ETH-USDT"
-        config.trading.side = "SELL"
-        config.trading.size = Decimal("0.1")
-        # NOTE: leverage and close_position are hardcoded (not in TradingConfig)
-
-        trade = create_trade_from_config(config, day_number=3)
-
-        assert trade.symbol == "ETH-USDT"
-        assert trade.side == "SELL"
-        assert trade.size == Decimal("0.1")
-        assert trade.day_number == 3
-        # NOTE: leverage and close_position are hardcoded, not in Trade dataclass
 
 
 class TestContinuousMode:

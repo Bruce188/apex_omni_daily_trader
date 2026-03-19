@@ -30,7 +30,7 @@ services:
       - TRADE_INTERVAL_HOURS=${TRADE_INTERVAL_HOURS:-4}
 
       # Safety
-      - DRY_RUN=${DRY_RUN:-true}
+      - DRY_RUN=${DRY_RUN:-false}
 
       # Logging
       - LOG_LEVEL=${LOG_LEVEL:-INFO}

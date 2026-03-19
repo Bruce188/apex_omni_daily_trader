@@ -12,7 +12,7 @@ from typing import Optional, Any
 from dataclasses import dataclass
 
 from bot.config import APIConfig
-from bot.utils import get_logger, mask_api_key, parse_decimal
+from bot.utils import get_logger, mask_api_key, parse_decimal, should_include_error_details, log_error
 
 
 @dataclass
@@ -74,43 +74,18 @@ class ApexOmniClient:
         self.config = config
         self.logger = get_logger()
         self._client = None
+        self._public_client = None
         self._configs_cache = None
         self._account_cache = None
-        self._sdk_initialized = False  # Track if SDK configV3/accountV3 are set
+        self._sdk_initialized = False
         self._initialized = False
 
     def _should_include_error_details(self) -> bool:
-        """
-        Determine if error details should be included in logs.
+        return should_include_error_details(self.config.testnet)
 
-        In production (mainnet, not debug), sanitizes error messages.
-        In development (testnet or DEBUG=true), includes full details.
-        """
-        return self.config.testnet or os.getenv("DEBUG", "").lower() == "true"
-
-    def _log_error(
-        self,
-        message: str,
-        exception: Optional[Exception] = None,
-        include_details: Optional[bool] = None
-    ) -> None:
-        """
-        Log error with appropriate detail level.
-
-        Args:
-            message: Base error message
-            exception: Optional exception to log details from
-            include_details: Override for including details (None = auto-detect)
-        """
-        if include_details is None:
-            include_details = self._should_include_error_details()
-
-        if include_details and exception:
-            self.logger.error(f"{message}: {exception}")
-        elif exception:
-            self.logger.error(f"{message}. Enable DEBUG=true for details.")
-        else:
-            self.logger.error(message)
+    def _log_error(self, message: str, exception: Optional[Exception] = None,
+                   include_details: Optional[bool] = None) -> None:
+        log_error(self.logger, message, exception, include_details, self.config.testnet)
 
     def _get_client(self):
         """
@@ -428,16 +403,11 @@ class ApexOmniClient:
             self._log_error("Failed to get account balance", e)
             return None
 
-    def get_current_price(self, symbol: str) -> Optional[Decimal]:
-        """
-        Get current market price for a symbol.
+    def _get_public_client(self):
+        """Get or create the cached public API client."""
+        if self._public_client is not None:
+            return self._public_client
 
-        Args:
-            symbol: Trading symbol
-
-        Returns:
-            Current price or None on error
-        """
         try:
             from apexomni.http_public import HttpPublic
 
@@ -448,7 +418,17 @@ class ApexOmniClient:
                 from apexomni.constants import APEX_OMNI_HTTP_MAIN
                 endpoint = APEX_OMNI_HTTP_MAIN
 
-            public_client = HttpPublic(endpoint)
+            self._public_client = HttpPublic(endpoint)
+        except ImportError as e:
+            self._log_error("Failed to import apexomni SDK", e)
+            raise
+
+        return self._public_client
+
+    def get_current_price(self, symbol: str) -> Optional[Decimal]:
+        """Get current market price for a symbol."""
+        try:
+            public_client = self._get_public_client()
             ticker = public_client.ticker_v3(symbol=symbol)
 
             if ticker and 'data' in ticker:
@@ -463,6 +443,34 @@ class ApexOmniClient:
         except Exception as e:
             self._log_error(f"Failed to get current price for {symbol}", e)
             return None
+
+    def get_all_prices(self) -> dict[str, Decimal]:
+        """
+        Get current prices for all symbols in a single API call.
+
+        Returns:
+            Dict mapping symbol name to current price
+        """
+        try:
+            public_client = self._get_public_client()
+            ticker = public_client.ticker_v3()
+
+            prices = {}
+            if ticker and 'data' in ticker:
+                data = ticker['data']
+                items = data if isinstance(data, list) else [data]
+                for item in items:
+                    sym = item.get('symbol', '')
+                    price_str = item.get('lastPrice', '0')
+                    if sym and price_str:
+                        prices[sym] = parse_decimal(price_str)
+
+            self.logger.debug(f"Fetched {len(prices)} prices in batch")
+            return prices
+
+        except Exception as e:
+            self._log_error("Failed to get batch prices", e)
+            return {}
 
     def place_order(
         self,
@@ -853,6 +861,10 @@ class MockApexOmniClient(ApexOmniClient):
         ]
         self.logger.info(f"[DRY-RUN] Returning {len(mock_symbols)} mock symbols")
         return mock_symbols
+
+    def get_all_prices(self) -> dict[str, Decimal]:
+        self.logger.info("[DRY-RUN] Returning mock batch prices")
+        return dict(self.MOCK_PRICES)
 
     def get_open_orders(self, symbol: Optional[str] = None) -> list[dict]:
         return []

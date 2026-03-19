@@ -10,7 +10,7 @@
 api:
   # Network endpoint: "mainnet" or "testnet"
   # ALWAYS use testnet for testing before going to mainnet!
-  endpoint: "testnet"
+  endpoint: "mainnet"
 
 # Trading Configuration
 # ---------------------
@@ -18,13 +18,6 @@ api:
 # NOTE: Positions are ALWAYS closed immediately (hardcoded for safety)
 # NOTE: Symbol is ALWAYS auto-selected (cheapest tradeable symbol)
 trading:
-  # SYMBOL SELECTION: AUTOMATIC
-  # ---------------------------
-  # The bot ALWAYS selects the cheapest tradeable symbol based on your balance.
-  # There is no "preferred" symbol concept - this minimizes trading costs.
-  # The 'symbol' field below is DEPRECATED and ignored.
-  # symbol: "BTC-USDT"  # DEPRECATED - ignored, bot auto-selects cheapest
-
   # Default trade direction: "BUY" or "SELL"
   side: "BUY"
 
@@ -45,7 +38,7 @@ trading:
 safety:
   # Dry-run mode: simulate trades without execution
   # ALWAYS start with dry_run: true until you've verified everything works!
-  dry_run: true
+  dry_run: false
 
   # Maximum position size allowed (in base currency)
   max_position_size: 0.01
@@ -59,7 +52,7 @@ safety:
   min_balance: 0.01
 
   # Whether to check balance before trading
-  require_balance_check: true
+  require_balance_check: false
 
 # Schedule Configuration
 # ----------------------

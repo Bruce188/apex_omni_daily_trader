@@ -1,0 +1,43 @@
+name: ApexOmni Daily Trade
+
+on:
+  schedule:
+    # Runs at 14:00 UTC daily. Change as needed.
+    - cron: '0 14 * * *'
+  workflow_dispatch: # Allows you to trigger it manually from the "Actions" tab
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Build Bot Image
+        run: docker build -t apex-bot .
+
+      - name: Run Trading Bot
+        env:
+          # --- SECRETS: These must be added in GitHub Repository Secrets ---
+          APEX_API_KEY: ${{ secrets.APEX_API_KEY }}
+          APEX_API_SECRET: ${{ secrets.APEX_API_SECRET }}
+          APEX_PASSPHRASE: ${{ secrets.APEX_PASSPHRASE }}
+          APEX_ZK_SEEDS: ${{ secrets.APEX_ZK_SEEDS }}
+          APEX_ZK_L2KEY: ${{ secrets.APEX_ZK_L2KEY }}
+          
+          # --- CONFIG: Fixed values for your bot ---
+          APEX_NETWORK: mainnet
+          DRY_RUN: false
+          LOG_LEVEL: INFO
+        run: |
+          docker run --rm \
+            --entrypoint python \
+            -e APEX_API_KEY="$APEX_API_KEY" \
+            -e APEX_API_SECRET="$APEX_API_SECRET" \
+            -e APEX_PASSPHRASE="$APEX_PASSPHRASE" \
+            -e APEX_ZK_SEEDS="$APEX_ZK_SEEDS" \
+            -e APEX_ZK_L2KEY="$APEX_ZK_L2KEY" \
+            -e APEX_NETWORK="$APEX_NETWORK" \
+            -e DRY_RUN="$DRY_RUN" \
+            -e LOG_LEVEL="$LOG_LEVEL" \
+            apex-bot scripts/run_bot.py --live

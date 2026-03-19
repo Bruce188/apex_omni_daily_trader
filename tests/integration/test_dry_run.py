@@ -24,8 +24,6 @@ from bot.api_client import MockApexOmniClient, create_client, AccountBalance
 from bot.trade_executor import Trade, TradeResult, TradeExecutor
 from bot.strategy import StakingOptimizationStrategy
 from bot.config import Config
-from data.collector import DataCollector
-from data.storage import Storage
 
 
 # =============================================================================
@@ -42,12 +40,9 @@ class TestDryRunFullWorkflow:
         """Set up a complete dry-run environment."""
         # Create config
         config = Config()
-        config.trading.symbol = "BTC-USDT"
         config.trading.side = "BUY"
         config.trading.size = Decimal("0.001")
         config.trading.order_type = "MARKET"
-        config.trading.leverage = 1
-        config.trading.close_position = True
         config.safety.dry_run = True
         config.safety.max_position_size = Decimal("1.0")
         config.safety.min_balance = Decimal("10.0")
@@ -60,17 +55,11 @@ class TestDryRunFullWorkflow:
         executor = TradeExecutor(client=client, config=config)
         strategy = StakingOptimizationStrategy(config)
 
-        # Create data collector
-        storage = Storage(data_dir=temp_data_dir)
-        collector = DataCollector(storage=storage)
-
         return {
             "config": config,
             "client": client,
             "executor": executor,
             "strategy": strategy,
-            "collector": collector,
-            "storage": storage,
         }
 
     def test_single_trade_dry_run(self, dry_run_setup):
@@ -109,7 +98,6 @@ class TestDryRunFullWorkflow:
         """Should simulate all 5 days of trading."""
         executor = dry_run_setup["executor"]
         strategy = dry_run_setup["strategy"]
-        collector = dry_run_setup["collector"]
 
         # Generate weekly schedule
         trades = strategy.generate_weekly_schedule()
@@ -416,7 +404,7 @@ class TestStrategyDryRunIntegration:
         assert len(trades) == 5
 
         for i, trade in enumerate(trades, 1):
-            assert trade.symbol == config.trading.symbol
+            assert trade.symbol == "BTC-USDT"
             assert trade.side == config.trading.side
             assert trade.order_type == config.trading.order_type
             assert trade.size == config.trading.size

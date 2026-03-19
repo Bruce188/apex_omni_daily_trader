@@ -558,20 +558,12 @@ apex_omni_daily_trader/
 |   |-- trade_executor.py     # Trade execution (mandatory closing, symbol-first)
 |   |-- circuit_breaker.py    # Circuit breaker protection
 |   `-- utils.py              # Helper utilities
-|-- data/                     # Data management (runtime files)
-|   |-- collector.py          # Trade data collection
-|   |-- metrics.py            # Performance metrics
-|   |-- models.py             # Data models
-|   |-- storage.py            # Data persistence
+|-- data/                     # Runtime data persistence
+|   |-- storage.py            # Bot state persistence
 |   |-- trades.json           # Trade history (runtime)
-|   |-- weekly_records.json   # Weekly staking progress (runtime)
 |   `-- bot_state.json        # Daily mode state (runtime)
-|-- analytics/                # Analytics
-|   |-- multiplier_analysis.py
-|   `-- performance.py
 |-- scripts/                  # Entry points
 |   |-- run_bot.py            # CLI entry point
-|   |-- run_continuous.py     # Daemon for Docker
 |   |-- dry_run.py            # Simulation mode
 |   |-- derive_zk_seeds.py    # ZK key derivation utility
 |   `-- calculate_multiplier.py
