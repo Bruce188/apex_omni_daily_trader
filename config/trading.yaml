@@ -18,13 +18,6 @@ api:
 # NOTE: Positions are ALWAYS closed immediately (hardcoded for safety)
 # NOTE: Symbol is ALWAYS auto-selected (cheapest tradeable symbol)
 trading:
-  # SYMBOL SELECTION: AUTOMATIC
-  # ---------------------------
-  # The bot ALWAYS selects the cheapest tradeable symbol based on your balance.
-  # There is no "preferred" symbol concept - this minimizes trading costs.
-  # The 'symbol' field below is DEPRECATED and ignored.
-  # symbol: "BTC-USDT"  # DEPRECATED - ignored, bot auto-selects cheapest
-
   # Default trade direction: "BUY" or "SELL"
   side: "BUY"
 

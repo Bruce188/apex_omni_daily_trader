@@ -1,7 +1,7 @@
 FROM python:3.12-slim
 
 LABEL maintainer="ApexOmni Trading Bot"
-LABEL description="24/7 Continuous Trading Bot for ApexOmni"
+LABEL description="Daily Trading Bot for ApexOmni Staking Optimization"
 
 WORKDIR /app
 
@@ -9,15 +9,19 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Create non-root user
+RUN useradd -r -s /bin/false -m appuser
+
 # Copy application code
 COPY bot/ ./bot/
-COPY data/ ./data/
-COPY analytics/ ./analytics/
 COPY scripts/ ./scripts/
 COPY config/ ./config/
 
-# Create data directory
-RUN mkdir -p /app/data /app/logs
+# Create data directory with correct ownership
+RUN mkdir -p /app/data /app/logs && chown -R appuser:appuser /app
+
+# Switch to non-root user
+USER appuser
 
 # Set environment defaults
 ENV PYTHONUNBUFFERED=1
@@ -28,6 +32,6 @@ ENV LOG_LEVEL=INFO
 HEALTHCHECK --interval=5m --timeout=10s --start-period=30s --retries=3 \
     CMD python -c "from bot.config import Config; Config.load()" || exit 1
 
-# Run continuous daemon
-ENTRYPOINT ["python", "scripts/run_continuous.py"]
-CMD ["--check-interval", "300"]
+# Default entry point for one-shot trading (GH Actions overrides this)
+ENTRYPOINT ["python", "scripts/run_bot.py"]
+CMD ["--live"]

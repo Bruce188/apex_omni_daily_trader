@@ -103,32 +103,19 @@ class TestTradingConfig:
     def test_default_values(self):
         """Should have correct default values."""
         config = TradingConfig()
-        assert config.symbol == "BTC-USDT"
         assert config.side == "BUY"
         assert config.order_type == "MARKET"
         assert config.size == Decimal("0.001")
-        # NOTE: leverage and close_position are hardcoded (not in TradingConfig)
 
     def test_validation_valid_config(self):
         """Should accept valid trading config."""
         config = TradingConfig(
-            symbol="ETH-USDT",
             side="SELL",
             order_type="LIMIT",
             size=Decimal("0.1"),
-            # NOTE: leverage is hardcoded to 1
         )
         errors = config.validate()
         assert len(errors) == 0
-
-    def test_validation_symbol_ignored(self):
-        """Symbol validation removed - bot always auto-selects cheapest."""
-        # NOTE: Symbol field is now deprecated and not validated
-        # The bot always auto-selects the cheapest tradeable symbol
-        config = TradingConfig(symbol="BTCUSDT")  # No dash - but ignored
-        errors = config.validate()
-        # No symbol validation errors - field is deprecated
-        assert not any("symbol" in e.lower() for e in errors)
 
     def test_validation_invalid_side(self):
         """Should reject invalid side."""
@@ -154,8 +141,6 @@ class TestTradingConfig:
         errors = config.validate()
         assert any("size" in e.lower() for e in errors)
 
-    # NOTE: test_validation_invalid_leverage_low and test_validation_invalid_leverage_high removed
-    # Leverage is now hardcoded to 1 and not part of TradingConfig
 
 
 # =============================================================================

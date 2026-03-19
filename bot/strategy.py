@@ -154,8 +154,8 @@ class StakingOptimizationStrategy:
             self.logger.info("Today is not a configured trade day")
             return None
 
-        # Use override values if provided (from pre-selection)
-        symbol = symbol_override if symbol_override else self.config.trading.symbol
+        # Symbol is always determined by TradeExecutor.determine_best_symbol()
+        symbol = symbol_override if symbol_override else "BTC-USDT"
         size = size_override if size_override else self.config.trading.size
 
         # Generate trade (leverage and close_position are hardcoded)
@@ -165,8 +165,6 @@ class StakingOptimizationStrategy:
             order_type=self.config.trading.order_type,
             size=size,
             day_number=day_number,
-            # REMOVED: leverage - hardcoded to 1
-            # REMOVED: close_position - hardcoded to True
         )
 
         self.logger.info("Generated trade for today:")
@@ -188,13 +186,11 @@ class StakingOptimizationStrategy:
 
         for day in range(1, 6):  # Days 1-5 (Mon-Fri)
             trade = Trade(
-                symbol=self.config.trading.symbol,
+                symbol="BTC-USDT",
                 side=self.config.trading.side,
                 order_type=self.config.trading.order_type,
                 size=self.config.trading.size,
                 day_number=day,
-                # REMOVED: leverage - hardcoded to 1
-                # REMOVED: close_position - hardcoded to True
             )
             trades.append(trade)
 
@@ -354,25 +350,6 @@ class StakingOptimizationStrategy:
         self.logger.info("* Total Factor assumes Time Factor = 0 (no locked staking)")
         self.logger.info("=" * 60)
 
-    def estimate_weekly_cost(self, fee_rate: float = 0.001) -> Decimal:
-        """
-        Estimate weekly trading cost.
-
-        Args:
-            fee_rate: Fee rate per trade (default 0.1%)
-
-        Returns:
-            Estimated total weekly cost
-        """
-        # Get current price estimate (use mock if not connected)
-        trade_value = self.config.trading.size * Decimal("95000")  # Assume ~$95k BTC
-
-        # Cost per trade (open + close)
-        cost_per_trade = trade_value * Decimal(str(fee_rate)) * 2
-
-        # Total for 5 trades
-        return cost_per_trade * 5
-
     def _count_remaining_trade_days(self, current_day: int) -> int:
         """Count remaining trade days this week."""
         remaining = 0
@@ -400,27 +377,3 @@ class StakingOptimizationStrategy:
                 return next_day.replace(hour=hours, minute=minutes, second=0, microsecond=0)
 
         return None
-
-
-def create_trade_from_config(config: Config, day_number: int = 1) -> Trade:
-    """
-    Factory function to create a trade from configuration.
-
-    Args:
-        config: Bot configuration
-        day_number: Day number in the staking week
-
-    Returns:
-        Trade object
-
-    Note: leverage (1x) and close_position (True) are hardcoded for safety.
-    """
-    return Trade(
-        symbol=config.trading.symbol,
-        side=config.trading.side,
-        order_type=config.trading.order_type,
-        size=config.trading.size,
-        day_number=day_number,
-        # REMOVED: leverage - hardcoded to 1
-        # REMOVED: close_position - hardcoded to True
-    )

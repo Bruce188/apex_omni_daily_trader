@@ -25,6 +25,8 @@ from bot.utils import (
     format_price,
     format_size,
     calculate_trading_activity_factor,
+    should_include_error_details,
+    log_error,
 )
 
 
@@ -48,8 +50,6 @@ class Trade:
     size: Decimal
     price: Optional[Decimal] = None
     day_number: int = 1
-    # REMOVED: leverage - now always 1 (hardcoded via HARDCODED_LEVERAGE)
-    # REMOVED: close_position - now always True (hardcoded)
 
 
 @dataclass
@@ -136,37 +136,11 @@ class TradeExecutor:
         )
 
     def _should_include_error_details(self) -> bool:
-        """
-        Determine if error details should be included in logs.
+        return should_include_error_details(self.config.api.testnet)
 
-        In production (mainnet, not debug), sanitizes error messages.
-        In development (testnet or DEBUG=true), includes full details.
-        """
-        return self.config.api.testnet or os.getenv("DEBUG", "").lower() == "true"
-
-    def _log_error(
-        self,
-        message: str,
-        exception: Optional[Exception] = None,
-        include_details: Optional[bool] = None
-    ) -> None:
-        """
-        Log error with appropriate detail level.
-
-        Args:
-            message: Base error message
-            exception: Optional exception to log details from
-            include_details: Override for including details (None = auto-detect)
-        """
-        if include_details is None:
-            include_details = self._should_include_error_details()
-
-        if include_details and exception:
-            self.logger.error(f"{message}: {exception}")
-        elif exception:
-            self.logger.error(f"{message}. Enable DEBUG=true for details.")
-        else:
-            self.logger.error(message)
+    def _log_error(self, message: str, exception: Optional[Exception] = None,
+                   include_details: Optional[bool] = None) -> None:
+        log_error(self.logger, message, exception, include_details, self.config.api.testnet)
 
     def _generate_client_order_id(self, trade: Trade, attempt: int = 1) -> str:
         """
@@ -295,12 +269,18 @@ class TradeExecutor:
             self.logger.error("No symbols available from exchange")
             return None
 
+        # Batch fetch all prices in a single API call
+        all_prices = self.client.get_all_prices()
+
         # Calculate min order value for each symbol
         tradeable_symbols: list[tuple[SymbolConfig, Decimal, Decimal]] = []
         symbol_analysis: list[str] = []
 
         for symbol_config in all_symbols:
-            current_price = self.client.get_current_price(symbol_config.symbol)
+            current_price = all_prices.get(symbol_config.symbol)
+            if current_price is None:
+                # Fallback to individual price fetch if not in batch
+                current_price = self.client.get_current_price(symbol_config.symbol)
             if current_price is None:
                 symbol_analysis.append(
                     f"  - {symbol_config.symbol}: PRICE UNAVAILABLE"
@@ -309,7 +289,6 @@ class TradeExecutor:
 
             min_order_value = symbol_config.min_order_size * current_price
 
-            # Check if tradeable with current balance
             if min_order_value <= available_balance:
                 tradeable_symbols.append((symbol_config, min_order_value, current_price))
                 symbol_analysis.append(
@@ -495,15 +474,14 @@ class TradeExecutor:
 
         return True, None
 
-    def execute_trade(self, trade: Trade) -> TradeResult:
+    def execute_trade(self, trade: Trade, pre_selected: bool = False) -> TradeResult:
         """
         Execute a trade with validation and error handling.
 
-        The bot ALWAYS selects the cheapest tradeable symbol automatically.
-        There is no "preferred" symbol concept.
-
         Args:
             trade: Trade to execute
+            pre_selected: If True, skip symbol re-selection (caller already
+                         called determine_best_symbol and set the trade's symbol/size)
 
         Returns:
             TradeResult with execution details
@@ -520,24 +498,21 @@ class TradeExecutor:
 
         self.logger.info("=" * 50)
         self.logger.info("Executing trade for today")
-        self.logger.info(f"Requested Symbol: {trade.symbol}")
+        self.logger.info(f"Symbol: {trade.symbol}")
         self.logger.info(f"Side: {trade.side}")
-        self.logger.info(f"Requested Size: {trade.size}")
+        self.logger.info(f"Size: {trade.size}")
         self.logger.info("=" * 50)
 
-        # Step 0.5: ALWAYS select cheapest tradeable symbol
-        selection_result = self.select_symbol_for_trade(trade)
-        if selection_result is None:
-            error = "No tradeable symbol found. Insufficient balance for any symbol."
-            self.logger.error(error)
-            return TradeResult(trade=trade, success=False, error=error)
+        if not pre_selected:
+            # Select cheapest tradeable symbol
+            selection_result = self.select_symbol_for_trade(trade)
+            if selection_result is None:
+                error = "No tradeable symbol found. Insufficient balance for any symbol."
+                self.logger.error(error)
+                return TradeResult(trade=trade, success=False, error=error)
+            trade, _ = selection_result
 
-        # Use selected trade (cheapest available symbol)
-        original_symbol = trade.symbol
-        trade, symbol_config = selection_result
-
-        self.logger.info(f"Selected Symbol: {trade.symbol} (cheapest available)")
-        self.logger.info(f"Trade Size: {trade.size}")
+        self.logger.info(f"Trading: {trade.symbol} (size: {trade.size})")
 
         # Step 1: Validate trade
         is_valid, error = self.validate_trade(trade)

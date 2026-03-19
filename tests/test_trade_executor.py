@@ -42,7 +42,6 @@ class TestTrade:
             size=Decimal("0.001"),
             price=Decimal("95000.0"),
             day_number=1,
-            # NOTE: leverage and close_position are hardcoded (removed from dataclass)
         )
         assert trade.symbol == "BTC-USDT"
         assert trade.side == "BUY"
@@ -59,7 +58,6 @@ class TestTrade:
         )
         assert trade.price is None
         assert trade.day_number == 1
-        # NOTE: leverage and close_position are no longer fields (hardcoded)
 
 
 # =============================================================================
@@ -162,9 +160,9 @@ class TestTradeResult:
 class TestTradeExecutorValidation:
     """Tests for trade validation in TradeExecutor."""
 
-    def test_validate_trade_valid(self, trade_executor, sample_executor_trade):
+    def test_validate_trade_valid(self, trade_executor, sample_trade):
         """Should accept valid trade."""
-        is_valid, error = trade_executor.validate_trade(sample_executor_trade)
+        is_valid, error = trade_executor.validate_trade(sample_trade)
         assert is_valid is True
         assert error is None
 
@@ -263,8 +261,6 @@ class TestTradeExecutorValidation:
         assert is_valid is False
         assert "Invalid order type" in error
 
-    # NOTE: test_validate_trade_invalid_leverage removed
-    # Leverage is now hardcoded to 1 and not part of Trade dataclass
 
 
 # =============================================================================
@@ -324,11 +320,11 @@ class TestTradeExecutorBalanceCheck:
 class TestTradeExecutorExecution:
     """Tests for trade execution in TradeExecutor."""
 
-    def test_execute_trade_success(self, trade_executor, sample_executor_trade, mock_order_result):
+    def test_execute_trade_success(self, trade_executor, sample_trade, mock_order_result):
         """Should execute trade successfully."""
         trade_executor.client.place_order = Mock(return_value=mock_order_result)
 
-        result = trade_executor.execute_trade(sample_executor_trade)
+        result = trade_executor.execute_trade(sample_trade)
 
         assert result.success is True
         assert result.order_id == mock_order_result.order_id
@@ -348,12 +344,12 @@ class TestTradeExecutorExecution:
         assert result.success is False
         assert "side" in result.error.lower()
 
-    def test_execute_trade_price_failure(self, trade_executor, sample_executor_trade):
+    def test_execute_trade_price_failure(self, trade_executor, sample_trade):
         """Should fail when cannot get price for any symbol (no tradeable symbols)."""
         # When price is unavailable for ALL symbols, bot can't find any tradeable symbol
         trade_executor.client.get_current_price = Mock(return_value=None)
 
-        result = trade_executor.execute_trade(sample_executor_trade)
+        result = trade_executor.execute_trade(sample_trade)
         assert result.success is False
         # With auto-selection, failure is about no tradeable symbol (due to no prices)
         assert "no tradeable symbol" in result.error.lower() or "price" in result.error.lower()
@@ -525,10 +521,10 @@ class TestSymbolSelection:
         )
         assert result is None
 
-    def test_select_symbol_always_picks_cheapest(self, trade_executor, sample_executor_trade):
+    def test_select_symbol_always_picks_cheapest(self, trade_executor, sample_trade):
         """Should always select cheapest tradeable symbol."""
         # High balance client - should still pick cheapest symbol
-        result = trade_executor.select_symbol_for_trade(sample_executor_trade)
+        result = trade_executor.select_symbol_for_trade(sample_trade)
         assert result is not None
         trade, symbol_config = result
         # Bot always picks cheapest available symbol

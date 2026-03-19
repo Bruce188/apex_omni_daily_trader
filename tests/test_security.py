@@ -211,7 +211,6 @@ def trade_executor():
                 testnet=True,
             ),
             trading=TradingConfig(
-                symbol="BTC-USDT",
                 side="BUY",
                 order_type="MARKET",
                 size=Decimal("0.001"),

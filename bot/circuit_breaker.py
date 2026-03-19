@@ -6,7 +6,7 @@ or API abuse during outages.
 """
 
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 from textwrap import dedent
 from typing import Optional, Tuple
 import logging
@@ -43,7 +43,7 @@ class CircuitBreaker:
     def record_failure(self) -> None:
         """Record a failed trade, potentially open circuit."""
         self.failure_count += 1
-        self.last_failure_time = datetime.utcnow()
+        self.last_failure_time = datetime.now(timezone.utc)
 
         if self.failure_count >= self.max_failures:
             self.state = "OPEN"
@@ -65,7 +65,7 @@ class CircuitBreaker:
         if self.state == "OPEN":
             # Check if timeout has passed
             if self.last_failure_time:
-                elapsed = datetime.utcnow() - self.last_failure_time
+                elapsed = datetime.now(timezone.utc) - self.last_failure_time
                 if elapsed >= timedelta(minutes=self.reset_timeout_minutes):
                     self.state = "HALF_OPEN"
                     self.logger.info("Circuit breaker: Timeout elapsed, state HALF_OPEN")
@@ -73,7 +73,7 @@ class CircuitBreaker:
 
             remaining = self.reset_timeout_minutes
             if self.last_failure_time:
-                elapsed_mins = (datetime.utcnow() - self.last_failure_time).total_seconds() / 60
+                elapsed_mins = (datetime.now(timezone.utc) - self.last_failure_time).total_seconds() / 60
                 remaining = max(0, self.reset_timeout_minutes - elapsed_mins)
 
             return False, dedent(f"""

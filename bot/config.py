@@ -14,7 +14,7 @@ from decimal import Decimal
 import yaml
 from dotenv import load_dotenv
 
-from bot.utils import get_logger, parse_decimal, validate_symbol
+from bot.utils import get_logger, parse_decimal, mask_api_key
 
 
 # Load .env file from project root
@@ -81,24 +81,15 @@ class TradingConfig:
     based on available balance. There is no "preferred" symbol concept.
     """
 
-    # DEPRECATED: symbol field kept for backward compatibility but NOT used for preference
-    # The bot always selects the cheapest tradeable symbol automatically
-    symbol: str = "BTC-USDT"  # Ignored - bot auto-selects cheapest symbol
     side: str = "BUY"
     order_type: str = "MARKET"
     size: Decimal = Decimal("0.001")
-    # REMOVED: leverage - hardcoded to 1 for safety
-    # REMOVED: close_position - hardcoded to True for safety
-
-    # REMOVED: auto_select_symbol - bot ALWAYS auto-selects (no option to disable)
     min_trade_value_usdt: Decimal = Decimal("0.01")  # Minimum trade value target in USDT
 
 
     def validate(self) -> list[str]:
         """Validate trading configuration. Returns list of errors."""
         errors = []
-
-        # NOTE: symbol validation removed - bot auto-selects cheapest tradeable symbol
 
         if self.side.upper() not in ("BUY", "SELL"):
             errors.append(f"Invalid side: {self.side}. Must be BUY or SELL")
@@ -112,8 +103,6 @@ class TradingConfig:
         if self.min_trade_value_usdt <= 0:
             errors.append(f"min_trade_value_usdt must be positive: {self.min_trade_value_usdt}")
 
-
-        # REMOVED: leverage validation (hardcoded to 1)
 
         return errors
 
@@ -249,18 +238,12 @@ class Config:
         # Trading config
         if "trading" in data:
             trading_data = data["trading"]
-            # NOTE: symbol field is ignored - bot always auto-selects cheapest tradeable symbol
-            if "symbol" in trading_data:
-                self.trading.symbol = trading_data["symbol"]  # Kept for backward compat, but ignored
             if "side" in trading_data:
                 self.trading.side = trading_data["side"]
             if "type" in trading_data:
                 self.trading.order_type = trading_data["type"]
             if "size" in trading_data:
                 self.trading.size = parse_decimal(trading_data["size"])
-            # REMOVED: leverage - hardcoded to 1 for safety
-            # REMOVED: close_position - hardcoded to True for safety
-            # REMOVED: auto_select_symbol - bot ALWAYS auto-selects cheapest symbol
             if "min_trade_value_usdt" in trading_data:
                 self.trading.min_trade_value_usdt = parse_decimal(trading_data["min_trade_value_usdt"])
 
@@ -361,8 +344,6 @@ class Config:
     def print_summary(self) -> None:
         """Print configuration summary (safe for logging)."""
         logger = get_logger()
-
-        from bot.utils import mask_api_key
 
         logger.info("=" * 50)
         logger.info("Configuration Summary")

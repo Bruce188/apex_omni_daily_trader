@@ -11,7 +11,7 @@ Tests cover:
 import pytest
 import sys
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 from unittest.mock import patch
 
 PROJECT_ROOT = Path(__file__).parent.parent
@@ -107,7 +107,7 @@ class TestCircuitBreakerTimeout:
         assert cb.state == "OPEN"
         
         # Simulate timeout elapsed
-        cb.last_failure_time = datetime.utcnow() - timedelta(minutes=2)
+        cb.last_failure_time = datetime.now(timezone.utc) - timedelta(minutes=2)
         
         can_execute, reason = cb.can_execute()
         assert can_execute is True
@@ -190,12 +190,12 @@ class TestCircuitBreakerConfig:
         cb.record_failure()
         
         # 30 minutes elapsed - not enough
-        cb.last_failure_time = datetime.utcnow() - timedelta(minutes=30)
+        cb.last_failure_time = datetime.now(timezone.utc) - timedelta(minutes=30)
         can_execute, reason = cb.can_execute()
         assert can_execute is False
         
         # 61 minutes elapsed - should be half-open
-        cb.last_failure_time = datetime.utcnow() - timedelta(minutes=61)
+        cb.last_failure_time = datetime.now(timezone.utc) - timedelta(minutes=61)
         can_execute, reason = cb.can_execute()
         assert can_execute is True
 

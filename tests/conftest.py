@@ -1,17 +1,13 @@
 """
 Pytest Configuration and Fixtures for ApexOmni Trading Bot Tests.
-
-This module provides shared fixtures and configuration for all test modules.
 """
 
 import pytest
 import sys
-import os
-import json
 import tempfile
 import shutil
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime, timezone
 from decimal import Decimal
 from unittest.mock import Mock, patch
 
@@ -19,7 +15,6 @@ from unittest.mock import Mock, patch
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-# Import project modules
 from bot.config import Config, APIConfig, TradingConfig, SafetyConfig, ScheduleConfig
 from bot.api_client import (
     ApexOmniClient,
@@ -28,12 +23,9 @@ from bot.api_client import (
     SymbolConfig,
     OrderResult,
 )
-from bot.trade_executor import Trade as ExecutorTrade, TradeResult as ExecutorTradeResult, TradeExecutor
+from bot.trade_executor import Trade, TradeExecutor
 from bot.strategy import StakingOptimizationStrategy
-from data.models import Trade, TradeResult, WeeklyTradeRecord, StakingInfo, TradeStatus
 from data.storage import Storage
-from data.collector import DataCollector
-from data.metrics import MetricsTracker
 
 
 # =============================================================================
@@ -58,13 +50,9 @@ def api_config():
 def trading_config():
     """Create a test trading configuration."""
     return TradingConfig(
-        symbol="BTC-USDT",  # DEPRECATED - bot always auto-selects cheapest
         side="BUY",
         order_type="MARKET",
         size=Decimal("0.001"),
-        # REMOVED: leverage - hardcoded to 1
-        # REMOVED: close_position - hardcoded to True
-        # REMOVED: auto_select_symbol - bot ALWAYS auto-selects
         min_trade_value_usdt=Decimal("0.01"),
     )
 
@@ -79,7 +67,7 @@ def safety_config():
         min_balance=Decimal("50.0"),
         require_balance_check=True,
         max_retries=3,
-        retry_delay=0.1,  # Faster for tests
+        retry_delay=0.1,
     )
 
 
@@ -87,12 +75,12 @@ def safety_config():
 def schedule_config():
     """Create a test schedule configuration."""
     return ScheduleConfig(
-        mode="daily",  # NEW
-        trade_interval_hours=4,  # NEW
-        trade_days=[0, 1, 2, 3, 4],  # Monday to Friday
+        mode="daily",
+        trade_interval_hours=4,
+        trade_days=[0, 1, 2, 3, 4],
         trade_time="09:00",
         timezone="UTC",
-        continue_after_max_factor=True,  # NEW
+        continue_after_max_factor=True,
     )
 
 
@@ -116,7 +104,6 @@ def config(api_config, trading_config, safety_config, schedule_config):
 
 @pytest.fixture
 def mock_account_balance():
-    """Create a mock account balance."""
     return AccountBalance(
         total_equity=Decimal("1000.0"),
         available_balance=Decimal("950.0"),
@@ -127,7 +114,6 @@ def mock_account_balance():
 
 @pytest.fixture
 def mock_symbol_config():
-    """Create a mock symbol configuration."""
     return SymbolConfig(
         symbol="BTC-USDT",
         base_currency="BTC",
@@ -141,7 +127,6 @@ def mock_symbol_config():
 
 @pytest.fixture
 def mock_order_result():
-    """Create a mock successful order result."""
     return OrderResult(
         success=True,
         order_id="TEST-ORDER-001",
@@ -154,14 +139,13 @@ def mock_order_result():
         filled_size=Decimal("0.001"),
         filled_price=Decimal("95000.0"),
         status="FILLED",
-        fee=Decimal("0.0475"),  # 0.05% of 95
+        fee=Decimal("0.0475"),
         timestamp=1700000000000,
     )
 
 
 @pytest.fixture
 def failed_order_result():
-    """Create a mock failed order result."""
     return OrderResult(
         success=False,
         error="Insufficient balance",
@@ -169,17 +153,13 @@ def failed_order_result():
 
 
 @pytest.fixture
-def mock_api_client(api_config, mock_account_balance, mock_symbol_config, mock_order_result):
-    """Create a mock ApexOmni API client."""
+def mock_api_client(api_config):
     return MockApexOmniClient(api_config)
 
 
 @pytest.fixture
 def patched_api_client(api_config, mock_account_balance, mock_symbol_config, mock_order_result):
-    """Create a patched real API client that doesn't make actual requests."""
     client = ApexOmniClient(api_config)
-
-    # Patch all methods that would make API calls
     client.test_connection = Mock(return_value=True)
     client.get_account_balance = Mock(return_value=mock_account_balance)
     client.get_symbol_config = Mock(return_value=mock_symbol_config)
@@ -189,7 +169,6 @@ def patched_api_client(api_config, mock_account_balance, mock_symbol_config, moc
     client.get_open_orders = Mock(return_value=[])
     client.get_positions = Mock(return_value=[])
     client.get_trade_fills = Mock(return_value=[])
-
     return client
 
 
@@ -199,144 +178,31 @@ def patched_api_client(api_config, mock_account_balance, mock_symbol_config, moc
 
 @pytest.fixture
 def sample_trade():
-    """Create a sample trade (data.models.Trade)."""
-    return Trade(
-        symbol="BTC-USDT",
-        side="buy",
-        size=0.001,
-        price=95000.0,
-        order_type="market",
-        leverage=1,
-        day_number=1,
-    )
-
-
-@pytest.fixture
-def sample_executor_trade():
     """Create a sample trade (bot.trade_executor.Trade)."""
-    return ExecutorTrade(
+    return Trade(
         symbol="BTC-USDT",
         side="BUY",
         order_type="MARKET",
         size=Decimal("0.001"),
         price=Decimal("95000.0"),
         day_number=1,
-        # REMOVED: leverage - hardcoded to 1
-        # REMOVED: close_position - hardcoded to True
     )
-
-
-@pytest.fixture
-def sample_trade_result(sample_trade):
-    """Create a sample trade result."""
-    return TradeResult(
-        trade=sample_trade,
-        success=True,
-        order_id="TEST-ORDER-001",
-        executed_price=95000.0,
-        executed_size=0.001,
-        fees=0.0475,
-        timestamp=datetime.utcnow(),
-        status=TradeStatus.FILLED,
-    )
-
-
-@pytest.fixture
-def failed_trade_result(sample_trade):
-    """Create a failed trade result."""
-    return TradeResult(
-        trade=sample_trade,
-        success=False,
-        error="Insufficient balance",
-        status=TradeStatus.FAILED,
-    )
-
-
-@pytest.fixture
-def sample_weekly_trades():
-    """Create a list of sample trades for a week."""
-    trades = []
-    base_time = datetime.utcnow().replace(hour=10, minute=0, second=0, microsecond=0)
-
-    for day in range(5):  # Monday to Friday
-        trade = Trade(
-            symbol="BTC-USDT",
-            side="buy",
-            size=0.001,
-            price=95000.0 + (day * 100),
-            order_type="market",
-            day_number=day + 1,
-        )
-        result = TradeResult(
-            trade=trade,
-            success=True,
-            order_id=f"ORDER-{day + 1:03d}",
-            executed_price=95000.0 + (day * 100),
-            executed_size=0.001,
-            fees=0.0475,
-            timestamp=base_time - timedelta(days=4 - day),
-            status=TradeStatus.FILLED,
-        )
-        trades.append(result)
-
-    return trades
 
 
 # =============================================================================
-# Storage and Data Fixtures
+# Storage Fixtures
 # =============================================================================
 
 @pytest.fixture
 def temp_data_dir():
-    """Create a temporary data directory for tests."""
     temp_dir = tempfile.mkdtemp(prefix="apex_test_")
     yield temp_dir
-    # Cleanup after test
     shutil.rmtree(temp_dir, ignore_errors=True)
 
 
 @pytest.fixture
 def storage(temp_data_dir):
-    """Create a storage instance with temp directory."""
     return Storage(data_dir=temp_data_dir)
-
-
-@pytest.fixture
-def data_collector(storage):
-    """Create a data collector instance."""
-    return DataCollector(storage=storage)
-
-
-@pytest.fixture
-def metrics_tracker(storage):
-    """Create a metrics tracker instance."""
-    return MetricsTracker(storage=storage)
-
-
-@pytest.fixture
-def sample_weekly_record():
-    """Create a sample weekly trade record."""
-    now = datetime.utcnow()
-    # Get Monday of current week
-    monday = now - timedelta(days=now.weekday())
-    monday = monday.replace(hour=8, minute=0, second=0, microsecond=0)
-
-    return WeeklyTradeRecord(
-        week_start=monday,
-        week_end=monday + timedelta(days=7),
-        trades=[],
-        days_traded=set(),
-    )
-
-
-@pytest.fixture
-def sample_staking_info():
-    """Create sample staking info."""
-    return StakingInfo(
-        staked_amount=1000.0,
-        lock_months=6,
-        start_date=datetime.utcnow() - timedelta(days=30),
-    )
 
 
 # =============================================================================
@@ -345,7 +211,6 @@ def sample_staking_info():
 
 @pytest.fixture
 def trade_executor(mock_api_client, config, temp_data_dir):
-    """Create a trade executor with mock client."""
     config.data_dir = temp_data_dir
     return TradeExecutor(client=mock_api_client, config=config)
 
@@ -356,7 +221,6 @@ def trade_executor(mock_api_client, config, temp_data_dir):
 
 @pytest.fixture
 def strategy(config):
-    """Create a staking optimization strategy."""
     return StakingOptimizationStrategy(config)
 
 
@@ -366,7 +230,6 @@ def strategy(config):
 
 @pytest.fixture
 def temp_env_file(temp_data_dir):
-    """Create a temporary .env file."""
     env_path = Path(temp_data_dir) / ".env"
     env_content = """
 APEX_API_KEY=test_key_from_env
@@ -384,21 +247,15 @@ LOG_LEVEL=DEBUG
 
 @pytest.fixture
 def temp_yaml_config(temp_data_dir):
-    """Create a temporary YAML config file."""
     yaml_path = Path(temp_data_dir) / "config.yaml"
     yaml_content = """
 api:
   endpoint: testnet
 
 trading:
-  # symbol is DEPRECATED - bot always auto-selects cheapest tradeable symbol
-  # symbol: ETH-USDT  # Ignored
   side: SELL
   type: LIMIT
   size: 0.01
-  # NOTE: leverage and close_position are no longer configurable
-  # They are hardcoded to 1 and True respectively for safety
-  # NOTE: auto_select_symbol REMOVED - bot ALWAYS auto-selects
   min_trade_value_usdt: 0.01
 
 safety:
@@ -429,26 +286,18 @@ data_dir: custom_data
 
 @pytest.fixture
 def mock_datetime():
-    """Mock datetime for consistent time-based tests."""
-    # Monday at 10 AM UTC
-    fixed_time = datetime(2024, 1, 15, 10, 0, 0)
+    fixed_time = datetime(2024, 1, 15, 10, 0, 0, tzinfo=timezone.utc)
     return fixed_time
 
 
 @pytest.fixture
 def freeze_time(mock_datetime):
-    """Context manager to freeze time for tests."""
     with patch('bot.utils.get_current_utc_time') as mock:
         mock.return_value = mock_datetime
         yield mock_datetime
 
 
-# =============================================================================
-# Markers Configuration
-# =============================================================================
-
 def pytest_configure(config):
-    """Configure pytest markers."""
     config.addinivalue_line("markers", "unit: Unit tests (fast, isolated)")
     config.addinivalue_line("markers", "integration: Integration tests")
     config.addinivalue_line("markers", "dry_run: Dry-run simulation tests")

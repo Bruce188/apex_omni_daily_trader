@@ -13,7 +13,8 @@ SECURITY WARNING:
 Usage:
   python3 derive_zk_seeds.py
 
-Then enter your Ethereum private key when prompted.
+Then enter your Ethereum private key when prompted (via secure prompt).
+Never pass private keys as command-line arguments.
 """
 
 import os
@@ -117,8 +118,8 @@ def derive_zk_keys(eth_private_key=None):
         """).strip())
         print()
 
-        # Update .env file
-        env_path = os.path.join(os.path.dirname(__file__), '.env')
+        # Update .env file (project root, not scripts/)
+        env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env')
 
         # Read existing .env
         env_content = ""
@@ -152,9 +153,10 @@ def derive_zk_keys(eth_private_key=None):
                     l2key_set = True
                     break
 
-        # Write updated .env
+        # Write updated .env with restrictive permissions
         with open(env_path, 'w') as f:
             f.write('\n'.join(new_lines))
+        os.chmod(env_path, 0o600)
 
         print("ZK Seeds saved to .env file!")
         print()
@@ -172,7 +174,5 @@ def derive_zk_keys(eth_private_key=None):
 
 
 if __name__ == "__main__":
-    # Accept private key as command line argument
-    private_key = sys.argv[1] if len(sys.argv) > 1 else None
-    success = derive_zk_keys(private_key)
+    success = derive_zk_keys()
     sys.exit(0 if success else 1)
