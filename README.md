@@ -1,5 +1,13 @@
 # ApexOmni Daily Trading Bot
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+![Python](https://img.shields.io/badge/Python_3.11-3776AB?style=flat-square&logo=python&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat-square&logo=docker&logoColor=white)
+![Web3](https://img.shields.io/badge/Web3.py-F16822?style=flat-square&logo=web3dotjs&logoColor=white)
+![YAML](https://img.shields.io/badge/YAML-CB171E?style=flat-square&logo=yaml&logoColor=white)
+![pytest](https://img.shields.io/badge/pytest-0A9EDC?style=flat-square&logo=pytest&logoColor=white)
+
 A Python trading bot that executes strategic trades on ApexOmni to maximize your staking Trading Activity Factor (+0.5 maximum).
 
 ## Features
@@ -19,7 +27,7 @@ Docker is the recommended deployment method for production use. It provides a st
 
 ```bash
 # Clone the repository
-git clone <repository-url>
+git clone https://github.com/Bruce188/apex_omni_daily_trader.git
 cd apex_omni_daily_trader
 
 # Copy the environment template
