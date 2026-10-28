@@ -12,7 +12,7 @@ A Python trading bot that executes strategic trades on ApexOmni to maximize your
 
 ## Features
 
-- **24/7 Continuous Trading**: Configurable intervals for round-the-clock operation
+- **Daily Trading**: One trade per UTC day on configured trade days (Docker or scheduled GitHub Actions run)
 - **Automatic Position Closing**: All positions closed immediately (hardcoded safety)
 - **1x Cross Margin**: Conservative leverage for safety (hardcoded)
 - **Staking Optimization**: Achieves maximum Trading Activity Factor (0.5) with 5 unique trading days
@@ -45,8 +45,10 @@ APEX_API_SECRET=your_api_secret_here
 APEX_PASSPHRASE=your_passphrase_here
 APEX_ZK_SEEDS=your_zk_seeds_here
 APEX_NETWORK=testnet  # Use 'mainnet' for live trading
-DRY_RUN=true          # Set to 'false' for live trading
+DRY_RUN=true          # Not used by the Docker image (it always runs --live)
 ```
+
+The Docker image runs `python scripts/run_bot.py --live`, so it places real orders on the network set by `APEX_NETWORK`. Use the Python dry-run commands below to test first. Dry-run trades are also saved to `data/trades.json`, which docker-compose mounts, so a dry-run counts as that day's trade.
 
 ### 2. Start the Bot
 
@@ -137,18 +139,20 @@ python scripts/run_bot.py --verbose
 | `APEX_PASSPHRASE` | Yes | Your API passphrase | - |
 | `APEX_ZK_SEEDS` | Yes | ZK seeds for order signing | - |
 | `APEX_ZK_L2KEY` | No | ZK L2 key (derived from seeds if empty) | - |
-| `APEX_NETWORK` | No | `testnet` or `mainnet` | `testnet` |
-| `DRY_RUN` | No | Force dry-run mode | `true` |
+| `APEX_NETWORK` | No | `testnet` or `mainnet` | `mainnet` from `config/trading.yaml` (`testnet` under docker-compose) |
+| `APEX_TESTNET` | No | `true`/`false`; overrides `APEX_NETWORK` | - |
+| `DRY_RUN` | No | Dry-run override for `scripts/run_continuous.py` (`scripts/run_bot.py` uses `--live` instead) | `false` from `config/trading.yaml` |
 | `LOG_LEVEL` | No | `DEBUG`, `INFO`, `WARNING`, `ERROR` | `INFO` |
-| `SCHEDULE_MODE` | No | `daily` or `continuous` | `daily` |
-| `TRADE_INTERVAL_HOURS` | No | Hours between trades (continuous mode) | `4` |
 | `DEBUG` | No | Enable detailed error messages | `false` |
-| `MAX_FAILURES` | No | Circuit breaker failure threshold | `5` |
-| `CIRCUIT_RESET_MINUTES` | No | Circuit breaker reset time (minutes) | `30` |
+
+`SCHEDULE_MODE`, `TRADE_INTERVAL_HOURS`, `MAX_FAILURES` and `CIRCUIT_RESET_MINUTES` appear in `.env.example` and `docker-compose.yml` but are not read by the code. Set schedule options in `config/trading.yaml`; the circuit breaker limits are hardcoded.
 
 ### Trading Configuration (config/trading.yaml)
 
 ```yaml
+api:
+  endpoint: "mainnet"             # Default network when APEX_NETWORK is not set
+
 trading:
   # Symbol selection is AUTOMATIC - the bot always picks the cheapest tradeable symbol
   # based on your available balance. No manual symbol configuration needed.
@@ -156,14 +160,14 @@ trading:
   type: "MARKET"                  # MARKET or LIMIT
 
 schedule:
-  mode: "continuous"              # "daily" or "continuous"
+  mode: "daily"                   # "daily" or "continuous"
   trade_interval_hours: 4
   trade_days: [0, 1, 2, 3, 4, 5, 6]  # All 7 days (24/7 trading)
   trade_time: "09:00"             # For daily mode (UTC)
   continue_after_max_factor: true
 
 safety:
-  dry_run: true
+  dry_run: false
   max_position_size: 0.01
   min_balance: 0.01
 ```
@@ -174,19 +178,22 @@ The following settings are **hardcoded for safety** and cannot be configured:
 
 | Setting | Value | Reason |
 |---------|-------|--------|
-| **Leverage** | Always 1x (cross margin) | Prevents liquidation risk |
+| **Leverage** | 1x for margin sizing (not sent to the exchange) | Prevents liquidation risk |
 | **Position Closing** | Always immediate | Eliminates market exposure |
 
 ### Schedule Modes
 
-#### Continuous Mode (Recommended for Docker)
+`schedule.mode`, `trade_time` and `trade_interval_hours` are read by `scripts/run_continuous.py`. `scripts/run_bot.py` (used by the Docker image and the GitHub Actions workflow) ignores them: each run places at most one trade, and skips if today is not in `trade_days`, if `data/trades.json` already has a successful trade today (UTC), or if it has 5 this staking week.
 
-Trades at regular intervals 24/7 on configured days:
+> **Known issue:** `run_continuous.py` currently fails on every check in both modes (`Storage.get_current_week_record()` is not implemented in `data/storage.py`), so it does not place trades.
+
+#### Continuous Mode
+
+Trades at regular intervals 24/7 on configured days (`python scripts/run_continuous.py`):
 
 - Default: Every 4 hours
 - Runs continuously in the background
-- Ideal for Docker deployment
-- Checks trade eligibility at each interval
+- Checks trade eligibility every 5 minutes (`--check-interval`)
 
 ```yaml
 schedule:
@@ -213,10 +220,10 @@ schedule:
 ```
 
 **Daily Mode State Tracking:**
-- Bot tracks whether it has traded today in `bot_state.json`
+- `scripts/run_bot.py` skips trading if `data/trades.json` already has a successful trade dated today (UTC), dry-run trades included; `--force` overrides
+- `scripts/run_continuous.py` also records `last_trade_date` in `data/bot_state.json`, using the 8:00 AM UTC day boundary
 - State survives container restarts and system reboots
 - Prevents duplicate trades when bot restarts during the same day
-- State resets automatically at midnight UTC
 
 ## Docker Deployment (Production)
 
@@ -232,11 +239,11 @@ The Docker setup includes:
 
 ### Starting Production
 
+The container runs `scripts/run_bot.py --live` once per start. With `restart: unless-stopped`, Docker relaunches it after each exit, and it skips once today's trade is in `data/trades.json`.
+
 ```bash
-# Set environment for production
-echo "DRY_RUN=false" >> .env
+# Set environment for production (the image always trades live)
 echo "APEX_NETWORK=mainnet" >> .env
-echo "SCHEDULE_MODE=continuous" >> .env
 
 # Start with build
 docker compose up -d --build
@@ -265,23 +272,27 @@ docker compose down
 docker compose up -d --build
 ```
 
+### GitHub Actions (Scheduled)
+
+`.github/workflows/daily_trade.yml` builds the root `Dockerfile` and runs `scripts/run_bot.py --live` on mainnet daily at 14:00 UTC (or manually via "Run workflow"). Add `APEX_API_KEY`, `APEX_API_SECRET`, `APEX_PASSPHRASE`, `APEX_ZK_SEEDS` and (optionally) `APEX_ZK_L2KEY` as repository secrets. Runners are ephemeral, so `data/` starts empty on every run: the once-per-day and 5-per-week checks never see earlier trades, and the bot trades on every run that falls on a configured trade day, including a second manual run on the same day.
+
 ### Data Persistence
 
 Trade data and bot state are persisted in the `./data` directory:
 
 ```
 data/
-  trades.json           # Trade history
-  weekly_records.json   # Weekly staking progress
-  bot_state.json        # Daily mode state (has_traded_today)
+  trades.json           # Trade history (used for the once-per-day and weekly counts)
+  bot_state.json        # run_continuous.py state
 ```
 
 This data survives container restarts and rebuilds.
 
-**State Persistence (Daily Mode):**
+**State Persistence (`run_continuous.py`):**
 The `bot_state.json` file tracks whether the bot has traded today. The state includes:
-- `last_trade_date`: Date of last successful trade
-- `traded_today`: Boolean flag checked before trading
+- `last_trade_date`: Timestamp of last successful trade, checked before trading
+- `last_trade_time`: Used for the continuous-mode interval
+- `last_updated`: When the state was last written
 
 ## How It Works
 
@@ -551,7 +562,7 @@ docker inspect apex-daily-trader --format='{{range .State.Health.Log}}{{.Output}
 | "Permission denied" | Run with `sudo` or add user to docker group |
 | "Port already in use" | Bot doesn't use ports, check other containers |
 | "No space left" | Run `docker system prune` to clean up |
-| Container keeps restarting | Check logs, likely config error |
+| Container keeps restarting | Expected: the bot exits after each run and `restart: unless-stopped` starts it again. Check logs for errors |
 
 For comprehensive troubleshooting, see [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md).
 
@@ -569,19 +580,26 @@ apex_omni_daily_trader/
 |-- data/                     # Runtime data persistence
 |   |-- storage.py            # Bot state persistence
 |   |-- trades.json           # Trade history (runtime)
-|   `-- bot_state.json        # Daily mode state (runtime)
+|   `-- bot_state.json        # run_continuous.py state (runtime)
 |-- scripts/                  # Entry points
-|   |-- run_bot.py            # CLI entry point
+|   |-- run_bot.py            # CLI entry point (one trade per run)
+|   |-- run_continuous.py     # Continuous daemon
 |   |-- dry_run.py            # Simulation mode
+|   |-- debug_account.py      # Account/margin diagnostics
 |   |-- derive_zk_seeds.py    # ZK key derivation utility
 |   `-- calculate_multiplier.py
 |-- config/
 |   `-- trading.yaml          # Trading parameters
 |-- docker/
-|   `-- Dockerfile
+|   |-- Dockerfile            # Image used by docker-compose.yml
+|   `-- Dockerfile.test
+|-- .github/workflows/
+|   `-- daily_trade.yml       # Scheduled daily live run
 |-- tests/                    # Test suite
 |-- docs/                     # Documentation
+|-- Dockerfile                # Image used by GitHub Actions
 |-- docker-compose.yml
+|-- QUICK_START.md
 |-- .env.example
 `-- README.md
 ```
@@ -608,7 +626,7 @@ apex_omni_daily_trader/
 
 - **Leverage is always 1x** - prevents liquidation risk
 - **Positions always close immediately** - no market exposure
-- **Dry-run mode enabled by default** - test before live trading
+- **Dry-run is the default for `scripts/run_bot.py`** - pass `--live` to trade (the Docker image and GitHub Actions workflow do)
 - Balance checks before trading
 - Position limits enforced
 
@@ -618,16 +636,14 @@ The bot includes automatic circuit breaker protection:
 - Blocks trading after 5 consecutive failures
 - Auto-resets after 30 minutes
 - Prevents runaway losses during API outages
-- Configurable via environment variables:
-  - `MAX_FAILURES` (default: 5)
-  - `CIRCUIT_RESET_MINUTES` (default: 30)
+- Limits are hardcoded in `bot/trade_executor.py`; the count is kept in memory, so it only builds up within a long-running process
 
 ### Mainnet Safety Warning
 
 When running in live mode on mainnet, the bot displays a warning with 5-second countdown:
 - Press Ctrl+C to abort
 - Prevents accidental live trading
-- Only shown when `DRY_RUN=false` AND `APEX_NETWORK=mainnet`
+- Only shown when trading live on mainnet (`run_bot.py --live`, or `run_continuous.py` with dry-run off)
 
 ### Risk Warnings
 
@@ -642,7 +658,7 @@ Contributions are welcome! Please:
 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/your-feature`)
-3. Run tests: `pytest`
+3. Run tests: `pip install pytest && pytest`
 4. Commit your changes (`git commit -m 'Add your feature'`)
 5. Push to the branch (`git push origin feature/your-feature`)
 6. Open a Pull Request
