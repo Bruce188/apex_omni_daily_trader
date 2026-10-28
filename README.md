@@ -48,7 +48,7 @@ APEX_NETWORK=testnet  # Use 'mainnet' for live trading
 DRY_RUN=true          # Not used by the Docker image (it always runs --live)
 ```
 
-The Docker image runs `python scripts/run_bot.py --live`, so it places real orders on the network set by `APEX_NETWORK`. Use the Python dry-run commands below to test first.
+The Docker image runs `python scripts/run_bot.py --live`, so it places real orders on the network set by `APEX_NETWORK`. Use the Python dry-run commands below to test first. Dry-run trades are also saved to `data/trades.json`, which docker-compose mounts, so a dry-run counts as that day's trade.
 
 ### 2. Start the Bot
 
@@ -183,7 +183,7 @@ The following settings are **hardcoded for safety** and cannot be configured:
 
 ### Schedule Modes
 
-`schedule.mode`, `trade_time` and `trade_interval_hours` are read by `scripts/run_continuous.py`. `scripts/run_bot.py` (used by the Docker image and the GitHub Actions workflow) ignores them: each run places at most one trade per UTC day, on a configured trade day, up to 5 per staking week.
+`schedule.mode`, `trade_time` and `trade_interval_hours` are read by `scripts/run_continuous.py`. `scripts/run_bot.py` (used by the Docker image and the GitHub Actions workflow) ignores them: each run places at most one trade, and skips if today is not in `trade_days`, if `data/trades.json` already has a successful trade today (UTC), or if it has 5 this staking week.
 
 > **Known issue:** `run_continuous.py` currently fails on every check in both modes (`Storage.get_current_week_record()` is not implemented in `data/storage.py`), so it does not place trades.
 
@@ -220,7 +220,7 @@ schedule:
 ```
 
 **Daily Mode State Tracking:**
-- `scripts/run_bot.py` skips trading if `data/trades.json` already has a successful trade dated today (UTC); `--force` overrides
+- `scripts/run_bot.py` skips trading if `data/trades.json` already has a successful trade dated today (UTC), dry-run trades included; `--force` overrides
 - `scripts/run_continuous.py` also records `last_trade_date` in `data/bot_state.json`, using the 8:00 AM UTC day boundary
 - State survives container restarts and system reboots
 - Prevents duplicate trades when bot restarts during the same day
@@ -274,7 +274,7 @@ docker compose up -d --build
 
 ### GitHub Actions (Scheduled)
 
-`.github/workflows/daily_trade.yml` builds the root `Dockerfile` and runs `scripts/run_bot.py --live` on mainnet daily at 14:00 UTC (or manually via "Run workflow"). Add `APEX_API_KEY`, `APEX_API_SECRET`, `APEX_PASSPHRASE`, `APEX_ZK_SEEDS` and `APEX_ZK_L2KEY` as repository secrets. Runners are ephemeral, so `data/` is not kept between runs.
+`.github/workflows/daily_trade.yml` builds the root `Dockerfile` and runs `scripts/run_bot.py --live` on mainnet daily at 14:00 UTC (or manually via "Run workflow"). Add `APEX_API_KEY`, `APEX_API_SECRET`, `APEX_PASSPHRASE`, `APEX_ZK_SEEDS` and (optionally) `APEX_ZK_L2KEY` as repository secrets. Runners are ephemeral, so `data/` starts empty on every run: the once-per-day and 5-per-week checks never see earlier trades, and the bot trades on every run that falls on a configured trade day, including a second manual run on the same day.
 
 ### Data Persistence
 
@@ -562,7 +562,7 @@ docker inspect apex-daily-trader --format='{{range .State.Health.Log}}{{.Output}
 | "Permission denied" | Run with `sudo` or add user to docker group |
 | "Port already in use" | Bot doesn't use ports, check other containers |
 | "No space left" | Run `docker system prune` to clean up |
-| Container keeps restarting | Check logs, likely config error |
+| Container keeps restarting | Expected: the bot exits after each run and `restart: unless-stopped` starts it again. Check logs for errors |
 
 For comprehensive troubleshooting, see [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md).
 
@@ -643,7 +643,7 @@ The bot includes automatic circuit breaker protection:
 When running in live mode on mainnet, the bot displays a warning with 5-second countdown:
 - Press Ctrl+C to abort
 - Prevents accidental live trading
-- Only shown when running live (`--live`) on mainnet
+- Only shown when trading live on mainnet (`run_bot.py --live`, or `run_continuous.py` with dry-run off)
 
 ### Risk Warnings
 
